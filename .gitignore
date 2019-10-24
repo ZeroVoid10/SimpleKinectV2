@@ -1,0 +1,11 @@
+build
+
+# libnect2 log
+log
+
+# ycm
+.color_coded
+.ycm*.py
+
+# ctags
+tags
