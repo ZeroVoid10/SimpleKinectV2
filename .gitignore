@@ -9,3 +9,6 @@ log
 
 # ctags
 tags
+
+# files
+*.pdf
