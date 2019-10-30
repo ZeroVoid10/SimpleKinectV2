@@ -12,7 +12,9 @@ set(CMAKE_CXX_FLAGS "-std=c++11")
 
 find_package(OpenCV REQUIRED)
 find_package(freenect2 REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common io)
+find_package(PCL 1.3 REQUIRED COMPONENTS common io visualization)
+
+include_directories(${PCL_INCLUDE_DIRS})
 
 link_directories(${PCL_LIBRARY_DIRS})
 

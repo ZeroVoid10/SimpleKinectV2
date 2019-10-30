@@ -6,10 +6,48 @@
 #include <libfreenect2/frame_listener_impl.h>
 #include <libfreenect2/packet_pipeline.h>
 #include <libfreenect2/registration.h>
+#include <libfreenect2/logger.h>
 
-int main(int argc, char *argv[])
-{
-    std::cout << "cloud point test" << std::endl;
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/point_cloud.h>
+
+#include <fstream>
+#include <cstdlib>
+
+typedef pcl::PointXYZRGBA PointT;
+typedef pcl::PointCloud<PointT> PointCloud;
+
+// custom logger
+class TestLogger: public libfreenect2::Logger {
+    private:
+        std::ofstream logfile_;
+    public:
+        TestLogger(const char *filename) {
+            if (filename) {
+                logfile_.open(filename);
+            }
+            level_ = Debug;
+        }
+        bool good() {
+            return logfile_.is_open() && logfile_.good();
+        }
+        virtual void log(Level level, const std::string &mes) {
+            logfile_ << "[" << libfreenect2::Logger::level2str(level) << "]" << mes << std::endl;
+        }
+};
+
+int main(int argc, char *argv[]) {
+    std::cout << "Clout Point Test" << std::endl;
+    // file logger
+    TestLogger *testlogger = new TestLogger("./log/cptest.log");
+    if (testlogger->good()) {
+        libfreenect2::setGlobalLogger(testlogger);
+    } else {
+        delete testlogger;
+    }
 
     // Configuration
     bool enable_rgb = true, enable_depth = true;
@@ -59,57 +97,55 @@ int main(int argc, char *argv[])
     libfreenect2::Registration *registration = 
                 new libfreenect2::Registration(dev->getIrCameraParams(),dev->getColorCameraParams());
     libfreenect2::Frame undistorted(512, 424, 4), registered(512,424, 4), depth2rgb(1920, 1080+2, 4);
-    cv::Mat depthMat, irMat, colorMat, unidisMat, rgbd, rgbd2;
+
+    cv::Mat depthMat, colorMat, unidisMat, rgbd, dst;
+    float x,y,z, color;
+
+    pcl::visualization::CloudViewer viewer("CloudPointTest");
+
     bool protonect_shutdown = false;
     while(!protonect_shutdown) {
         if (!listener.waitForNewFrame(frames, 10*1000)) {
             std::cout << "timeout!" << std::endl;
             return -1;
         }
-        //listener.waitForNewFrame(frames);
         libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
-        libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
         libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
-
-        cv::Mat((int)ir->height, (int)ir->width, CV_32FC1, ir->data).copyTo(irMat);
-        cv::Mat((int)depth->height, (int)depth->width, CV_32FC1, depth->data).copyTo(depthMat);
         cv::Mat((int)rgb->height, (int)rgb->width, CV_8UC4, rgb->data).copyTo(colorMat);
-        cv::imshow("depth", depthMat / 4096.0f);
-        cv::imshow("ir", irMat / 4096.0f);
+        //cv::Mat((int)depth->height, (int)depth->width, CV_32FC1, depth->data).copyTo(depthMat);
         cv::imshow("color", colorMat);
+        //cv::imshow("depth4", depthMat / 4096.0f);
 
         registration->apply(rgb, depth, &undistorted, &registered, true, &depth2rgb);
 
-        /*
-        float x,y,z;
-        registration->getPointXYZ(&undistorted,undistorted.height/2, undistorted.width/2,
-                                    x, y, z);
-        */
+        PointCloud::Ptr cloud(new PointCloud);
+        for (int m = 0; m < 512; m++) {
+            for (int n = 0; n < 424; n++) {
+                PointT p;
+                registration->getPointXYZRGB(&undistorted, &registered, n, m, x, y, z, color);
+                const uint8_t *c = reinterpret_cast<uint8_t*>(&color);
+                    p.z = -z;
+                    p.x = -x;
+                    p.y = -y;
+                    p.b = c[0];
+                    p.g = c[1];
+                    p.r = c[2];
+                cloud->points.push_back(p);
+            }
+        }
         
-        //std::cout << "x: " << x << " y: " << y << " z: " << z << "\r";
-        
-        /*
-        // 
-        cv::Mat(undistorted.height, undistorted.width, CV_32FC1, undistorted.data).copyTo(unidisMat);
-        cv::Mat(registered.height, registered.width, CV_8UC4, registered.data).copyTo(rgbd);
-        cv::Mat(depth2rgb.height, depth2rgb.width, CV_32FC1, depth2rgb.data).copyTo(rgbd2);
-        cv::imshow("undistorted", unidisMat / 4096.0f);
-        cv::imshow("registered", rgbd);
-        cv::imshow("depth2RGB", rgbd2 / 4096.0f);
-        */
-
+        viewer.showCloud(cloud);
         int key = cv::waitKey(1);
         protonect_shutdown = protonect_shutdown || (key > 0 && ((key &0xff) == 27));
-
         listener.release(frames);
     }
 
     // Stop the Device
     dev->stop();
     dev->close();
-
-    std::cout << "Ends" << std::endl; 
     delete registration;
+    
+    std::cout << "Ends" << std::endl; 
     return 0;
 }
 
