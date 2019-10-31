@@ -13,6 +13,8 @@
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/point_cloud.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/fast_bilateral.h>
 
 #include <fstream>
 #include <cstdlib>
@@ -99,9 +101,11 @@ int main(int argc, char *argv[]) {
     libfreenect2::Frame undistorted(512, 424, 4), registered(512,424, 4), depth2rgb(1920, 1080+2, 4);
 
     cv::Mat depthMat, colorMat, unidisMat, rgbd, dst;
+    cv::Mat blurDepthMat;
     float x,y,z, color;
 
     pcl::visualization::CloudViewer viewer("CloudPointTest");
+    pcl::PassThrough<PointT> pass;
 
     bool protonect_shutdown = false;
     while(!protonect_shutdown) {
@@ -112,16 +116,25 @@ int main(int argc, char *argv[]) {
         libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
         libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
         cv::Mat((int)rgb->height, (int)rgb->width, CV_8UC4, rgb->data).copyTo(colorMat);
-        //cv::Mat((int)depth->height, (int)depth->width, CV_32FC1, depth->data).copyTo(depthMat);
+        cv::Mat((int)depth->height, (int)depth->width, CV_32FC1, depth->data).copyTo(depthMat);
+
+        //cv::medianBlur(depthMat / 4096.0f, blurDepthMat, 5);
         cv::imshow("color", colorMat);
         //cv::imshow("depth4", depthMat / 4096.0f);
 
         registration->apply(rgb, depth, &undistorted, &registered, true, &depth2rgb);
 
         PointCloud::Ptr cloud(new PointCloud);
+        PointCloud::Ptr cloud_filtered(new PointCloud);
+        /*
+        pcl::FastBilateralFilter<PointT> filter;
+        filter.setSigmaS(5);
+        filter.setSigmaR(5e-3);
+        */
         for (int m = 0; m < 512; m++) {
             for (int n = 0; n < 424; n++) {
                 PointT p;
+                PointT p2;
                 registration->getPointXYZRGB(&undistorted, &registered, n, m, x, y, z, color);
                 const uint8_t *c = reinterpret_cast<uint8_t*>(&color);
                     p.z = -z;
@@ -134,7 +147,14 @@ int main(int argc, char *argv[]) {
             }
         }
         
-        viewer.showCloud(cloud);
+        // filter
+        pass.setInputCloud(cloud);
+        pass.setFilterFieldName("z");
+        pass.setFilterLimits(0.0, 1.0);
+        pass.setFilterLimitsNegative(true);
+        pass.filter(*cloud_filtered);
+
+        viewer.showCloud(cloud_filtered);
         int key = cv::waitKey(1);
         protonect_shutdown = protonect_shutdown || (key > 0 && ((key &0xff) == 27));
         listener.release(frames);

@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
                 new libfreenect2::Registration(dev->getIrCameraParams(),dev->getColorCameraParams());
     libfreenect2::Frame undistorted(512, 424, 4), registered(512,424, 4), depth2rgb(1920, 1080+2, 4);
     cv::Mat depthMat, irMat, colorMat, unidisMat, rgbd, rgbd2;
-    cv::Mat cDepthMat;
+    cv::Mat cDepthMat, blurDepthMat;
     bool protonect_shutdown = false;
     while(!protonect_shutdown) {
         if (!listener.waitForNewFrame(frames, 10*1000)) {
@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
         //cv::Mat((int)rgb->height, (int)rgb->width, CV_8UC4, rgb->data).copyTo(colorMat);
         //cv::Mat((int)ir->height, (int)ir->width, CV_32FC1, ir->data).copyTo(irMat);
         cv::Mat((int)depth->height, (int)depth->width, CV_32FC1, depth->data).copyTo(depthMat);
+        cv::medianBlur(depthMat / 4096.0f, blurDepthMat, 5);
         cv::cvtColor(depthMat / 4096.0f, cDepthMat, cv::COLOR_GRAY2RGB);
         cv::line(cDepthMat, cv::Point(0, 0), cv::Point(511, 423), cv::Scalar(255, 0, 0));
         cv::line(cDepthMat, cv::Point(0, 423), cv::Point(511, 0), cv::Scalar(255, 0, 0));
@@ -111,6 +112,7 @@ int main(int argc, char *argv[])
         std::cout << "val " << std::setw(10) << depthMat.at<float>(256, 212) << "\r";
         cv::imshow("depth4", depthMat / 4096.0f);
         cv::imshow("color depth", cDepthMat);
+        cv::imshow("blur depth", blurDepthMat);
 
         //cv::imshow("depthraw", depthMat);
         //cv::imshow("depth0.5", depthMat / 512.0f);
