@@ -91,28 +91,64 @@ int main(int argc, char *argv[])
     cv::Mat depthMat, irMat, colorMat, unidisMat, rgbd, rgbd2;
     cv::Mat cDepthMat, blurDepthMat;
     bool protonect_shutdown = false;
+    cv::Vec3b red;
+    red[0] = 0;
+    red[1] = 0;
+    red[2] = 255;
+
+    cv::VideoWriter writer;
+    /*
+    writer.open("test_video.mp4", 
+                //cv::VideoWriter::fourcc('X', 'V', 'I', 'D'),
+                cv::VideoWriter::fourcc('M', 'P', '4', 'V'),
+                30.0, 
+                cv::Size(512, 424), 
+                true);
+                */
     while(!protonect_shutdown) {
         if (!listener.waitForNewFrame(frames, 10*1000)) {
             std::cout << "timeout!" << std::endl;
             return -1;
         }
         //listener.waitForNewFrame(frames);
-        //libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
+        libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
         libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
         libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
 
-        //cv::Mat((int)rgb->height, (int)rgb->width, CV_8UC4, rgb->data).copyTo(colorMat);
+        cv::Mat((int)rgb->height, (int)rgb->width, CV_8UC4, rgb->data).copyTo(colorMat);
         //cv::Mat((int)ir->height, (int)ir->width, CV_32FC1, ir->data).copyTo(irMat);
         cv::Mat((int)depth->height, (int)depth->width, CV_32FC1, depth->data).copyTo(depthMat);
-        cv::medianBlur(depthMat / 4096.0f, blurDepthMat, 5);
+        cv::flip(depthMat, depthMat, 1);
         cv::cvtColor(depthMat / 4096.0f, cDepthMat, cv::COLOR_GRAY2RGB);
+        /*
         cv::line(cDepthMat, cv::Point(0, 0), cv::Point(511, 423), cv::Scalar(255, 0, 0));
         cv::line(cDepthMat, cv::Point(0, 423), cv::Point(511, 0), cv::Scalar(255, 0, 0));
         cv::line(cDepthMat, cv::Point(256, 212), cv::Point(256, 212), cv::Scalar(0, 0, 255));
-        std::cout << "val " << std::setw(10) << depthMat.at<float>(256, 212) << "\r";
+        */
+
+        cv::medianBlur(depthMat, blurDepthMat, 5);
+        registration->apply(rgb, depth, &undistorted, &registered, true, &depth2rgb);
+        cv::Mat(registered.height, registered.width, CV_8UC4, registered.data).copyTo(rgbd);
+        cv::medianBlur(rgbd, rgbd, 5);
+        //writer << colorMat;
+
+
+        for (int row = 0; row < depth->width; ++row) {
+            for (int col = 0; col < depth->height; ++col) {
+            if (blurDepthMat.at<float>(col, row) > 500 && blurDepthMat.at<float>(col, row) < 4000) {
+                    cv::line(cDepthMat, cv::Point(row, col), cv::Point(row, col), cv::Scalar(0, 0, 255));
+                    //cDepthMat.at<cv::Vec3b>(col, row) = red;
+                }
+            }
+        }
+
+        cv::flip(colorMat, colorMat, 1);
+        cv::imshow("color", colorMat);
         cv::imshow("depth4", depthMat / 4096.0f);
         cv::imshow("color depth", cDepthMat);
-        cv::imshow("blur depth", blurDepthMat);
+        cv::imshow("blur depth", blurDepthMat / 4096.0f);
+
+        std::cout << "val " << std::setw(10) << depthMat.at<float>(256, 212) << "\r";
 
         //cv::imshow("depthraw", depthMat);
         //cv::imshow("depth0.5", depthMat / 512.0f);
@@ -122,7 +158,6 @@ int main(int argc, char *argv[])
         //cv::imshow("ir", irMat / 4096.0f);
         //cv::imshow("color", colorMat);
 
-        //registration->apply(rgb, depth, &undistorted, &registered, true, &depth2rgb);
 
         /*
         float x,y,z;
@@ -135,7 +170,6 @@ int main(int argc, char *argv[])
         /*
         // 
         cv::Mat(undistorted.height, undistorted.width, CV_32FC1, undistorted.data).copyTo(unidisMat);
-        cv::Mat(registered.height, registered.width, CV_8UC4, registered.data).copyTo(rgbd);
         cv::Mat(depth2rgb.height, depth2rgb.width, CV_32FC1, depth2rgb.data).copyTo(rgbd2);
         cv::imshow("undistorted", unidisMat / 4096.0f);
         cv::imshow("registered", rgbd);
@@ -151,6 +185,7 @@ int main(int argc, char *argv[])
     // Stop the Device
     dev->stop();
     dev->close();
+    // writer.release();
 
     std::cout << "Ends" << std::endl; 
     delete registration;

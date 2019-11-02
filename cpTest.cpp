@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     libfreenect2::SyncMultiFrameListener listener(types);
     libfreenect2::FrameMap frames;
 
-    pipeline = new libfreenect2::OpenGLPacketPipeline();
+    pipeline = new libfreenect2::OpenCLKdePacketPipeline();
     dev = nect2.openDevice(serial);
     dev->setIrAndDepthFrameListener(&listener);
     dev->setColorFrameListener(&listener);
@@ -105,7 +105,20 @@ int main(int argc, char *argv[]) {
     float x,y,z, color;
 
     pcl::visualization::CloudViewer viewer("CloudPointTest");
+    pcl::FastBilateralFilter<PointT> fbf;
     pcl::PassThrough<PointT> pass;
+
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits(-5.0, -0.1);
+    //pass.setFilterFieldName("y");
+    //pass.setFilterLimits(-1.0, 10.0);
+    pass.setFilterFieldName("x");
+    pass.setFilterLimits(-2, 2);
+
+    //pass.setFilterLimitsNegative(true);
+
+    fbf.setSigmaS(5);
+    fbf.setSigmaR(5e-3);
 
     bool protonect_shutdown = false;
     while(!protonect_shutdown) {
@@ -115,24 +128,34 @@ int main(int argc, char *argv[]) {
         }
         libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
         libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
+        if (rgb->status || depth->status) {
+            // listener.release(frames);
+            continue;
+        }
+
         cv::Mat((int)rgb->height, (int)rgb->width, CV_8UC4, rgb->data).copyTo(colorMat);
         cv::Mat((int)depth->height, (int)depth->width, CV_32FC1, depth->data).copyTo(depthMat);
 
         //cv::medianBlur(depthMat / 4096.0f, blurDepthMat, 5);
-        cv::imshow("color", colorMat);
+        //cv::flip(colorMat, colorMat, 1); // 左右翻转
+        //cv::imshow("color", colorMat);
         //cv::imshow("depth4", depthMat / 4096.0f);
 
         registration->apply(rgb, depth, &undistorted, &registered, true, &depth2rgb);
 
         PointCloud::Ptr cloud(new PointCloud);
+        cloud->width = depth->width;
+        cloud->height = depth->height;
+        cloud->resize(depth->width * depth->height);
+        cloud->is_dense = false;
         PointCloud::Ptr cloud_filtered(new PointCloud);
-        /*
-        pcl::FastBilateralFilter<PointT> filter;
-        filter.setSigmaS(5);
-        filter.setSigmaR(5e-3);
-        */
-        for (int m = 0; m < 512; m++) {
-            for (int n = 0; n < 424; n++) {
+        cloud_filtered->width = depth->width;
+        cloud_filtered->height = depth->height;
+        cloud_filtered->is_dense = false;
+
+        for (int m = 0; m < depth->height; m++) {
+            for (int n = 0; n < depth->width; n++) {
+                unsigned int index = m*depth->width + n;
                 PointT p;
                 PointT p2;
                 registration->getPointXYZRGB(&undistorted, &registered, n, m, x, y, z, color);
@@ -144,19 +167,23 @@ int main(int argc, char *argv[]) {
                     p.g = c[1];
                     p.r = c[2];
                 cloud->points.push_back(p);
+                //cloud->points[index] = p;
             }
         }
-        
-        // filter
+
+        /* passthrough filter */
         pass.setInputCloud(cloud);
-        pass.setFilterFieldName("z");
-        pass.setFilterLimits(0.0, 1.0);
-        pass.setFilterLimitsNegative(true);
         pass.filter(*cloud_filtered);
 
+        /* FastBilateralFilter */
+        //fbf.setInputCloud(cloud_filtered);
+        //fbf.applyFilter(*cloud_filtered);
+
         viewer.showCloud(cloud_filtered);
+        //viewer.showCloud(cloud);
         int key = cv::waitKey(1);
-        protonect_shutdown = protonect_shutdown || (key > 0 && ((key &0xff) == 27));
+        protonect_shutdown = protonect_shutdown || (key > 0 && ((key &0xff) == 27)) || viewer.wasStopped();
+
         listener.release(frames);
     }
 
