@@ -1,4 +1,9 @@
 #include <iostream>
+#include <fstream>
+#include <cstdlib>
+#include <sstream>
+#include <vector>
+#include <map>
 
 #include <opencv2/opencv.hpp>
 
@@ -16,8 +21,6 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/fast_bilateral.h>
 
-#include <fstream>
-#include <cstdlib>
 
 typedef pcl::PointXYZRGBA PointT;
 typedef pcl::PointCloud<PointT> PointCloud;
@@ -101,26 +104,35 @@ int main(int argc, char *argv[]) {
     libfreenect2::Frame undistorted(512, 424, 4), registered(512,424, 4), depth2rgb(1920, 1080+2, 4);
 
     cv::Mat depthMat, colorMat, unidisMat, rgbd, dst;
-    cv::Mat blurDepthMat;
+    cv::Mat blurDepthMat, blurDepthMat2;
     float x,y,z, color;
 
+    // Filter
     pcl::visualization::CloudViewer viewer("CloudPointTest");
-    pcl::FastBilateralFilter<PointT> fbf;
+    //pcl::FastBilateralFilter<PointT> fbf;
     pcl::PassThrough<PointT> pass;
 
     pass.setFilterFieldName("z");
-    pass.setFilterLimits(-5.0, -0.1);
-    //pass.setFilterFieldName("y");
-    //pass.setFilterLimits(-1.0, 10.0);
-    pass.setFilterFieldName("x");
-    pass.setFilterLimits(-2, 2);
-
+    pass.setFilterLimits(-5.0, -0.5);
+    pass.setFilterFieldName("y");
+    pass.setFilterLimits(-0.4, 4.0); // 过滤掉地板
+    //pass.setFilterFieldName("x");
+    //pass.setFilterLimits(-2, 2);
     //pass.setFilterLimitsNegative(true);
-
+    
+    /*
     fbf.setSigmaS(5);
     fbf.setSigmaR(5e-3);
+    */
 
     bool protonect_shutdown = false;
+    bool first_frame = true;
+    PointCloud::Ptr lastCloud(new PointCloud);
+    lastCloud->width = 512;
+    lastCloud->height = 424;
+    lastCloud->resize(512*424);
+    lastCloud->is_dense = false;
+
     while(!protonect_shutdown) {
         if (!listener.waitForNewFrame(frames, 10*1000)) {
             std::cout << "timeout!" << std::endl;
@@ -128,48 +140,74 @@ int main(int argc, char *argv[]) {
         }
         libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
         libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
-        if (rgb->status || depth->status) {
-            // listener.release(frames);
-            continue;
-        }
 
         cv::Mat((int)rgb->height, (int)rgb->width, CV_8UC4, rgb->data).copyTo(colorMat);
         cv::Mat((int)depth->height, (int)depth->width, CV_32FC1, depth->data).copyTo(depthMat);
+        cv::flip(colorMat, colorMat, 1); // 左右翻转方便展示看
+        cv::flip(depthMat, depthMat, 1);
 
-        //cv::medianBlur(depthMat / 4096.0f, blurDepthMat, 5);
-        //cv::flip(colorMat, colorMat, 1); // 左右翻转
+        cv::medianBlur(depthMat, blurDepthMat, 5);
+        //cv::medianBlur(depthMat, blurDepthMat2, 5);
         //cv::imshow("color", colorMat);
-        //cv::imshow("depth4", depthMat / 4096.0f);
+        cv::imshow("depth4", depthMat / 4096.0f);
+        cv::imshow("blur /", blurDepthMat / 4096.0f);
+        //cv::imshow("blur", blurDepthMat2 / 4096.0f);
 
         registration->apply(rgb, depth, &undistorted, &registered, true, &depth2rgb);
 
         PointCloud::Ptr cloud(new PointCloud);
-        cloud->width = depth->width;
-        cloud->height = depth->height;
-        cloud->resize(depth->width * depth->height);
+        //cloud->width = depth->width;
+        //cloud->height = depth->height;
+        cloud->height = 1;
+        //cloud->resize(depth->width * depth->height);
         cloud->is_dense = false;
+        //cloud->points.resize(cloud->width*cloud->height);
         PointCloud::Ptr cloud_filtered(new PointCloud);
         cloud_filtered->width = depth->width;
         cloud_filtered->height = depth->height;
         cloud_filtered->is_dense = false;
 
+
+        //std::map<PointT, std::vector<int>> dep2pc;
+
+        // formate registered to pcl cloud point
         for (int m = 0; m < depth->height; m++) {
             for (int n = 0; n < depth->width; n++) {
                 unsigned int index = m*depth->width + n;
+                //std::vector<int> depPoint(2);
+                //depPoint[0] = m;
+                //depPoint[1] = n;
                 PointT p;
                 PointT p2;
                 registration->getPointXYZRGB(&undistorted, &registered, n, m, x, y, z, color);
                 const uint8_t *c = reinterpret_cast<uint8_t*>(&color);
-                    p.z = -z;
-                    p.x = -x;
-                    p.y = -y;
-                    p.b = c[0];
-                    p.g = c[1];
-                    p.r = c[2];
+                p.z = -z;
+                p.x = -x;
+                p.y = -y;
+                p.b = c[0];
+                p.g = c[1];
+                p.r = c[2];
                 cloud->points.push_back(p);
+                //dep2pc[p] = depPoint;
                 //cloud->points[index] = p;
             }
         }
+
+        //pcl::PLYWriter writer;
+        cloud->width =cloud->points.size();
+        std::fstream fs;
+        std::stringstream ss;
+        ss << "test.txt";
+        fs.open("test.txt", std::fstream::out);
+        for (int i = 0; i < cloud->points.size(); i++) {
+            fs << cloud->points[i].x << "\t";
+            fs << cloud->points[i].y << "\t";
+            fs << cloud->points[i].z << "\n";
+        }
+        fs.close();
+
+        //std::cout<< cloud->width*cloud->height << " " << cloud->points.size() << std::endl;
+        //writer.write("test.ply", *cloud);
 
         /* passthrough filter */
         pass.setInputCloud(cloud);

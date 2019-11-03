@@ -89,14 +89,22 @@ int main(int argc, char *argv[])
                 new libfreenect2::Registration(dev->getIrCameraParams(),dev->getColorCameraParams());
     libfreenect2::Frame undistorted(512, 424, 4), registered(512,424, 4), depth2rgb(1920, 1080+2, 4);
     cv::Mat depthMat, irMat, colorMat, unidisMat, rgbd, rgbd2;
-    cv::Mat cDepthMat, blurDepthMat;
-    bool protonect_shutdown = false;
+    cv::Mat cDepthMat, blurDepthMat, lastMat, deltaMat;
+    cv::Mat cDepthMat2, outlineMat, mask;
+    cv::Mat resBinMat = (cv::Mat_<uchar>(424, 512));
+    bool protonect_shutdown = false, first_frame = true;
+    float x,y,z, color;
     cv::Vec3b red;
     red[0] = 0;
     red[1] = 0;
     red[2] = 255;
 
     cv::VideoWriter writer;
+    cv::Mat ker = (cv::Mat_<float>(5,5)<< 1/32,1/32,1/32,1/32,1/32, 
+                                          1/32,1/8,1/8,1/8,1/32, 
+                                          1/32,1/8,0.1,1/8,1/32, 
+                                          1/32,1/8,1/8,1/8,1/32, 
+                                          1/32,1/32,1/32,1/32,1/32);
     /*
     writer.open("test_video.mp4", 
                 //cv::VideoWriter::fourcc('X', 'V', 'I', 'D'),
@@ -118,21 +126,80 @@ int main(int argc, char *argv[])
         cv::Mat((int)rgb->height, (int)rgb->width, CV_8UC4, rgb->data).copyTo(colorMat);
         //cv::Mat((int)ir->height, (int)ir->width, CV_32FC1, ir->data).copyTo(irMat);
         cv::Mat((int)depth->height, (int)depth->width, CV_32FC1, depth->data).copyTo(depthMat);
-        cv::flip(depthMat, depthMat, 1);
+        cv::blur(depthMat, deltaMat, cv::Size(3,3));
+        cv::medianBlur(depthMat, blurDepthMat, 5);
+        cv::GaussianBlur(blurDepthMat, blurDepthMat, cv::Size(3,3), 1.5);
+        cv::Sobel(blurDepthMat, outlineMat, 
+                  CV_32FC1, 1, 1, 3, 0.4, 128);
+        //cv::GaussianBlur(blurDepthMat, blurDepthMat, cv::Size(3, 3), 2);
+        outlineMat = blurDepthMat - outlineMat;
+        //cv::medianBlur(rgbd, rgbd, 5);
         cv::cvtColor(depthMat / 4096.0f, cDepthMat, cv::COLOR_GRAY2RGB);
+        if (first_frame) {
+            first_frame = false;
+            blurDepthMat.copyTo(lastMat);
+            //lastMat = depthMat;
+        }
+        deltaMat = lastMat - blurDepthMat;
+        //cv::blur(deltaMat, deltaMat, cv::Size(5,5));
+        blurDepthMat.copyTo(lastMat);
+
+        cDepthMat.copyTo(cDepthMat2);
+        cv::Mat resMat;
+        cDepthMat.copyTo(resMat);
+        registration->apply(rgb, depth, &undistorted, &registered, true, &depth2rgb);
+        cv::Mat(registered.height, registered.width, CV_8UC4, registered.data).copyTo(rgbd);
+        for (int col = 0; col < depth->width; ++col) {
+            for (int row = 0; row < depth->height; ++row) {
+                registration->getPointXYZ(&undistorted, row, col, x, y, z);        
+                if ( deltaMat.at<float>(row, col) > 25 && deltaMat.at<float>(row, col) < 1000) {
+                    cv::line(cDepthMat, cv::Point(col, row), cv::Point(col, row), cv::Scalar(0, 0, 255));
+                    if (y < 0.3 && z > 0.4 && z < 5) {
+                        cv::line(cDepthMat2, cv::Point(col, row), cv::Point(col, row), cv::Scalar(0, 0, 255));
+                        resBinMat.at<uchar>(row, col) = 255;
+                    } else {
+                        resBinMat.at<uchar>(row, col) = 0;
+                    }
+                } else {
+                    deltaMat.at<float>(row, col) = 0;
+                    resBinMat.at<uchar>(row, col) = 0;
+                }
+            }
+        }
+
+        //cv::filter2D(resBinMat, resMat, resMat.depth(), ker);
+
+        cv::flip(depthMat, depthMat, 1);
+        cv::flip(deltaMat, deltaMat, 1);
+        //cv::flip(colorMat, colorMat, 1);
+        cv::flip(cDepthMat, cDepthMat, 1);
+        cv::flip(cDepthMat2, cDepthMat2, 1);
+        cv::flip(blurDepthMat, blurDepthMat, 1);
+        cv::flip(resBinMat, resBinMat, 1);
+        cv::flip(resMat, resMat, 1);
+
+        std::vector<std::vector<cv::Point>> counters;
+        cv::findContours(resBinMat, counters, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
+        auto it = counters.begin();
+        while (it != counters.end()) {
+            if (it->size() < 65 || it->size() > 200) {
+                it = counters.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        //cv::Mat resMat(cv::Size(512, 424), CV_8U, cv::Scalar(255));
+        cv::drawContours(resMat, counters, -1, cv::Scalar(0, 0, 255),2);
         /*
         cv::line(cDepthMat, cv::Point(0, 0), cv::Point(511, 423), cv::Scalar(255, 0, 0));
         cv::line(cDepthMat, cv::Point(0, 423), cv::Point(511, 0), cv::Scalar(255, 0, 0));
         cv::line(cDepthMat, cv::Point(256, 212), cv::Point(256, 212), cv::Scalar(0, 0, 255));
         */
 
-        cv::medianBlur(depthMat, blurDepthMat, 5);
-        registration->apply(rgb, depth, &undistorted, &registered, true, &depth2rgb);
-        cv::Mat(registered.height, registered.width, CV_8UC4, registered.data).copyTo(rgbd);
-        cv::medianBlur(rgbd, rgbd, 5);
         //writer << colorMat;
+        
 
-
+        /* 单纯距离标色
         for (int row = 0; row < depth->width; ++row) {
             for (int col = 0; col < depth->height; ++col) {
             if (blurDepthMat.at<float>(col, row) > 500 && blurDepthMat.at<float>(col, row) < 4000) {
@@ -141,14 +208,19 @@ int main(int argc, char *argv[])
                 }
             }
         }
+        */
 
-        cv::flip(colorMat, colorMat, 1);
-        cv::imshow("color", colorMat);
-        cv::imshow("depth4", depthMat / 4096.0f);
+        //cv::imshow("color", colorMat);
+        //cv::imshow("depth", depthMat / 4096.0f);
         cv::imshow("color depth", cDepthMat);
+        cv::imshow("mask", cDepthMat2);
+        cv::imshow("deltaMat", deltaMat / -4096.0);
         cv::imshow("blur depth", blurDepthMat / 4096.0f);
+        cv::imshow("resbin", resBinMat);
+        cv::imshow("res", resMat);
+        //cv::imshow("outline", outlineMat / 4096.0f);
 
-        std::cout << "val " << std::setw(10) << depthMat.at<float>(256, 212) << "\r";
+        //std::cout << "val " << std::setw(10) << depthMat.at<float>(256, 212) << "\r";
 
         //cv::imshow("depthraw", depthMat);
         //cv::imshow("depth0.5", depthMat / 512.0f);
