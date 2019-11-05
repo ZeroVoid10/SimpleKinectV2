@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
 
         cv::flip(depthMat, depthMat, 1);
         cv::flip(deltaMat, deltaMat, 1);
-        //cv::flip(colorMat, colorMat, 1);
+        cv::flip(colorMat, colorMat, 1);
         cv::flip(cDepthMat, cDepthMat, 1);
         cv::flip(cDepthMat2, cDepthMat2, 1);
         cv::flip(blurDepthMat, blurDepthMat, 1);
@@ -210,12 +210,12 @@ int main(int argc, char *argv[])
         }
         */
 
-        //cv::imshow("color", colorMat);
+        cv::imshow("color", colorMat);
         //cv::imshow("depth", depthMat / 4096.0f);
         cv::imshow("color depth", cDepthMat);
         cv::imshow("mask", cDepthMat2);
         cv::imshow("deltaMat", deltaMat / -4096.0);
-        cv::imshow("blur depth", blurDepthMat / 4096.0f);
+        ////cv::imshow("blur depth", blurDepthMat / 4096.0f);
         cv::imshow("resbin", resBinMat);
         cv::imshow("res", resMat);
         //cv::imshow("outline", outlineMat / 4096.0f);

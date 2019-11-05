@@ -8,25 +8,25 @@ set(CMAKE_BUILD_TYPE "Debug")
 
 project(RugbyDetect)
 
+add_subdirectory(src)
+add_subdirectory(test)
+# aux_source_directory(src SRC_DIR)
+
 set(CMAKE_CXX_FLAGS "-std=c++11")
 
 find_package(OpenCV REQUIRED)
 find_package(freenect2 REQUIRED)
 find_package(PCL 1.3 REQUIRED COMPONENTS common io visualization filters)
 
-include_directories(${PCL_INCLUDE_DIRS})
-
+include_directories(${PCL_INCLUDE_DIRS} include)
 link_directories(${PCL_LIBRARY_DIRS})
-
 add_definitions(${PCL_DEFINITIONS})
 
-add_executable(RugbyDetect test.cpp)
-add_executable(CloudPointTest cpTest.cpp)
+add_executable(RugbyDetect src/main.cpp)
 
-target_link_libraries(RugbyDetect ${OpenCV_LIBS})
-target_link_libraries(RugbyDetect ${freenect2_LIBRARIES})
-target_link_libraries(RugbyDetect ${PCL_LIBRARIES})
-target_link_libraries(CloudPointTest ${OpenCV_LIBS})
-target_link_libraries(CloudPointTest ${freenect2_LIBRARIES})
-target_link_libraries(CloudPointTest ${PCL_LIBRARIES})
+target_link_libraries(RugbyDetect
+                            TestLib
+                            ${OpenCV_LIBS}
+                            ${freenect2_LIBRARIES}
+                            ${PCL_LIBRARIES})
 
