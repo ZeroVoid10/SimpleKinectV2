@@ -1,8 +1,7 @@
 #include "kinectgrabber.h"
 
 using namespace zerovoid;
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     KinectLogger *testlogger = new KinectLogger();
     if (testlogger->start() != true) {
         delete testlogger;
