@@ -4,15 +4,25 @@ set(PROJECT_VER_MAJOR 0)
 set(PROJECT_VER_MINOR 1)
 set(PROJECT_VER_PATCH 0)
 set(PROJECT_VER "${PROJECT_VER_MAJOR}.${PROJECT_VER_MINOR}.${PROJECT_VER_PATCH}")
-set(CMAKE_BUILD_TYPE "Debug")
 
-project(RugbyDetect)
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug)
+endif()
+set(CMAKE_CXX_FLAGS "-std=c++11")
+Message("Build type: " ${CMAKE_BUILD_TYPE})
+
+project(SimpleV)
 
 add_subdirectory(src)
 add_subdirectory(test)
 # aux_source_directory(src SRC_DIR)
+set(SRC "${CMAKE_PROJECT_DIR}/src")
+set(TEST "${CMAKE_PROJECT_DIR}/test")
+set(THIRDPARTY "${CMAKE_PROJECT_DIR}/thirdparty")
+set(ORB_SLAM "${THIRDPARTY}/ORB_SLAM")
 
-set(CMAKE_CXX_FLAGS "-std=c++11")
+# configure_file(config.h.in config.h)
+# target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC ${PROJECT_BINARY_DIR})
 
 find_package(OpenCV REQUIRED)
 find_package(freenect2 REQUIRED)
@@ -22,9 +32,9 @@ include_directories(${PCL_INCLUDE_DIRS} include)
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
-add_executable(RugbyDetect src/main.cpp)
+add_executable(${CMAKE_PROJECT_NAME} src/main.cpp)
 
-target_link_libraries(RugbyDetect
+target_link_libraries(${CMAKE_PROJECT_NAME}
                             TestLib
                             ${OpenCV_LIBS}
                             ${freenect2_LIBRARIES}

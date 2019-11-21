@@ -1,0 +1,3 @@
+#define SimpleV_VERSION_MAJOR @SimpleV_VERSION_MAJOR@
+#define SimpleV_VERSION_MINOR @SimpleV_VERSION_MINOR@
+#define SimpleV_VERSION_PATCH @SimpleV_VERSION_PATCH@
