@@ -1,5 +1,11 @@
 #include "kinectgrabber.h"
 
+// ORB SLAM 2
+#include <iostream>
+#include<algorithm>
+#include<fstream>
+#include<chrono>
+
 using namespace zerovoid;
 
 int main(int argc, char *argv[]) {

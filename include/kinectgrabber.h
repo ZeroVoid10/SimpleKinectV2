@@ -33,6 +33,7 @@ namespace zerovoid {
         
         libfreenect2::FrameMap frames;
         libfreenect2::Registration *registration;
+        libfreenect2::Frame undistorted, registered, depth2rgb;
         bool shutdown;
 
     private:
