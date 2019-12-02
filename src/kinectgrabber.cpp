@@ -9,10 +9,7 @@ using namespace zerovoid;
 
 KinectGrabber::KinectGrabber() : 
     listener(libfreenect2::Frame::Color|libfreenect2::Frame::Depth|libfreenect2::Frame::Ir),
-    shutdown(false),
-    undistorted(512, 424, 4),
-    registered(512, 424, 4),
-    depth2rgb(1920, 1082, 4) {
+    shutdown(false) {
     serial = "";
     dev = nullptr;
     pipeline = nullptr;
@@ -53,21 +50,17 @@ bool KinectGrabber::waitNewFrame(int sec) {
 }
 
 void KinectGrabber::getFrames(cv::Mat* colorMat, cv::Mat* depthMat, cv::Mat* irMat) {
-    libfreenect2::Frame *rgb = nullptr, *depth = nullptr, *ir = nullptr;
     if (colorMat != nullptr) {
-        rgb = frames[libfreenect2::Frame::Color];
+        libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
         cv::Mat((int)rgb->height, (int)rgb->width, CV_8UC4, rgb->data).copyTo(*colorMat);
     }
     if (depthMat != nullptr) {
-        depth = frames[libfreenect2::Frame::Depth];
+        libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
         cv::Mat((int)depth->height, (int)depth->width, CV_32FC1, depth->data).copyTo(*depthMat);
     }
     if (irMat != nullptr) {
-        ir = frames[libfreenect2::Frame::Ir];
+        libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
         cv::Mat((int)ir->height, (int)ir->width, CV_32FC1, ir->data).copyTo(*irMat);
-    }
-    if (colorMat != nullptr && depthMat != nullptr) {
-        registration->apply(rgb, depth, &undistorted, &registered, true, &depth2rgb);
     }
 }
 

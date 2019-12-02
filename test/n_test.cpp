@@ -1,24 +1,13 @@
 #include "kinectgrabber.h"
 
 using namespace zerovoid;
-int main(int argc, char *argv[]) {
-    KinectLogger *testlogger = new KinectLogger();
-    if (testlogger->start() != true) {
-        delete testlogger;
+int main(int argc, char *argv[])
+{
+    KinectLogger *logger = new KinectLogger();
+    if (logger->good()) {
+        libfreenect2::setGlobalLogger(logger);
+    } else {
+        delete logger;
     }
-    KinectGrabber kinect;
-    if (kinect.start() == false) {
-        return -1;
-    }
-    cv::Mat colorMat, depthMat, irMat;
-
-    while(kinect.shutdown == false) {
-        if (kinect.waitNewFrame(10) == false) {
-            std::cout << "Wait time out" << std::endl;
-            break;
-        }
-        kinect.getFrames(&colorMat, &depthMat, nullptr);
-    }
-
     return 0;
 }
