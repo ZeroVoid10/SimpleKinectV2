@@ -1,4 +1,6 @@
 build
+thirdparty
+.vscode
 
 # libnect2 log
 log
@@ -14,3 +16,4 @@ tags
 *.pdf
 *.avi
 *.mp4
+img
