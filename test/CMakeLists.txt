@@ -13,11 +13,17 @@ include_directories(../include)
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
-add_executable(n_test n_test.cpp)
+# add_executable(n_test n_test.cpp)
 add_executable(KinectTest test.cpp)
 add_executable(CloudPointTest cpTest.cpp)
+add_executable(Calibrate caliberation_test.cpp)
+add_executable(surf_test surf_test.cpp)
 
-target_link_libraries(n_test ${freenect2_LIBRARIES} TestLib)
+# target_link_libraries(n_test ${freenect2_LIBRARIES} TestLib)
+target_link_libraries(Calibrate 
+                            ${OpenCV_LIBS})                           
+target_link_libraries(surf_test
+                            ${OpenCV_LIBS})                           
 target_link_libraries(KinectTest 
                             ${OpenCV_LIBS}
                             ${freenect2_LIBRARIES}

@@ -84,6 +84,11 @@ int main(int argc, char *argv[])
     std::cout << "device serial: " << dev->getSerialNumber() << std::endl;
     std::cout << "device firmware: " << dev->getFirmwareVersion() << std::endl;
 
+    // CameraParms
+    libfreenect2::Freenect2Device::ColorCameraParams colorParam = dev->getColorCameraParams();
+    libfreenect2::Freenect2Device::IrCameraParams irParams = dev->getIrCameraParams();
+    std::cout << "Color Params: " << colorParam.fx << " " << colorParam.fy << " " << colorParam.cx << " " << colorParam.cy << std::endl;
+
     // Receive Image Frames
     libfreenect2::Registration *registration = 
                 new libfreenect2::Registration(dev->getIrCameraParams(),dev->getColorCameraParams());
@@ -182,7 +187,7 @@ int main(int argc, char *argv[])
         cv::findContours(resBinMat, counters, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
         auto it = counters.begin();
         while (it != counters.end()) {
-            if (it->size() < 65 || it->size() > 200) {
+            if (it->size() < 30 || it->size() > 200) {
                 it = counters.erase(it);
             } else {
                 ++it;
@@ -213,10 +218,10 @@ int main(int argc, char *argv[])
         cv::imshow("color", colorMat);
         //cv::imshow("depth", depthMat / 4096.0f);
         cv::imshow("color depth", cDepthMat);
-        cv::imshow("mask", cDepthMat2);
-        cv::imshow("deltaMat", deltaMat / -4096.0);
+        //cv::imshow("mask", cDepthMat2);
+        //cv::imshow("deltaMat", deltaMat / -4096.0);
         ////cv::imshow("blur depth", blurDepthMat / 4096.0f);
-        cv::imshow("resbin", resBinMat);
+        //cv::imshow("resbin", resBinMat);
         cv::imshow("res", resMat);
         //cv::imshow("outline", outlineMat / 4096.0f);
 
