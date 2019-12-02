@@ -1,4 +1,6 @@
 build
+thirdparty
+.vscode
 
 # libnect2 log
 log
